@@ -45,11 +45,13 @@ public final class ConnectStringParser {
 
     /**
      * Parse host and port by spliting client connectString
-     * with support for IPv6 literals
+     * with support for IPv6 literals 服务器地址列表解析器
      * @throws IllegalArgumentException
      *             for an invalid chroot path.
      */
     public ConnectStringParser(String connectString) {
+        // chroot 设置命名空间
+        // 用法 host1:port1,host2:port2,host3:port3/chroot
         // parse out chroot, if any
         int off = connectString.indexOf('/');
         if (off >= 0) {
@@ -71,6 +73,7 @@ public final class ConnectStringParser {
             int port = DEFAULT_PORT;
             String[] hostAndPort = NetUtils.getIPV6HostAndPort(host);
             if (hostAndPort.length != 0) {
+                // IPV6
                 host = hostAndPort[0];
                 if (hostAndPort.length == 2) {
                     port = Integer.parseInt(hostAndPort[1]);
@@ -85,6 +88,7 @@ public final class ConnectStringParser {
                     host = host.substring(0, pidx);
                 }
             }
+            // host port 保存
             serverAddresses.add(InetSocketAddress.createUnresolved(host, port));
         }
     }

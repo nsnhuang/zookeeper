@@ -113,6 +113,7 @@ public class WorkerService {
             return;
         }
 
+        // 构建一个ScheduledWorkRequest，这是个runnable，有线程池则使用线程池，否则直接执行
         ScheduledWorkRequest scheduledWorkRequest = new ScheduledWorkRequest(workRequest);
 
         // If we have a worker thread pool, use that; otherwise, do the work

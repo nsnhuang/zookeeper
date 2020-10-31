@@ -59,6 +59,7 @@ public final class StaticHostProvider implements HostProvider {
 
     /**
      * The following fields are used to migrate clients during reconfiguration
+     * 在重新配置期间迁移客户端
      */
     private boolean reconfigMode = false;
 
@@ -85,6 +86,8 @@ public final class StaticHostProvider implements HostProvider {
         init(serverAddresses, System.currentTimeMillis() ^ this.hashCode(), new Resolver() {
             @Override
             public InetAddress[] getAllByName(String name) throws UnknownHostException {
+                // 给定主机的名称，根据系统上配置的名称服务返回其IP地址数组。
+                // 主机名可以是机器名称，例如“ java.sun.com ”或其IP地址的文本表示。 如果提供了文字IP地址，则只会检查地址格式的有效性。
                 return InetAddress.getAllByName(name);
             }
         });
@@ -158,15 +161,18 @@ public final class StaticHostProvider implements HostProvider {
     }
 
     /**
-     * Update the list of servers. This returns true if changing connections is necessary for load-balancing, false
-     * otherwise. Changing connections is necessary if one of the following holds:
+     * 更新server列表，如果需要改变连接（以实现负载均衡）返回true，否则false。
+     * Update the list of servers. This returns true if changing connections is necessary for load-balancing, false otherwise.
+     * Changing connections is necessary if one of the following holds:
      * a) the host to which this client is currently connected is not in serverAddresses.
      *    Otherwise (if currentHost is in the new list serverAddresses):
      * b) the number of servers in the cluster is increasing - in this case the load on currentHost should decrease,
      *    which means that SOME of the clients connected to it will migrate to the new servers. The decision whether
      *    this client migrates or not (i.e., whether true or false is returned) is probabilistic so that the expected
      *    number of clients connected to each server is the same.
+     * 改变连接的两种情况，1. 新的server列表中没有当前机器 2. s < s'服务器数量增加，有一定概率client会迁移(返回true)
      *
+     * 如果返回true，pOld、pNew对应迁移到新server和旧server的概率（只有当前host不在new host列表时，才迁移到）
      * If true is returned, the function sets pOld and pNew that correspond to the probability to migrate to ones of the
      * new servers in serverAddresses or one of the old servers (migrating to one of the old servers is done only
      * if our client's currentHost is not in serverAddresses). See nextHostInReconfigMode for the selection logic.
@@ -183,6 +189,7 @@ public final class StaticHostProvider implements HostProvider {
     public synchronized boolean updateServerList(
         Collection<InetSocketAddress> serverAddresses,
         InetSocketAddress currentHost) {
+        // 洗牌，打乱 serverAddresses
         List<InetSocketAddress> shuffledList = shuffle(serverAddresses);
         if (shuffledList.isEmpty()) {
             throw new IllegalArgumentException("A HostProvider may not be empty!");
@@ -194,6 +201,7 @@ public final class StaticHostProvider implements HostProvider {
 
         // choose "current" server according to the client rebalancing algorithm
         if (reconfigMode) {
+            // reconfigMode模式，说明drop了：client使用概率算法选择一个新的server
             myServer = next(0);
         }
 
@@ -228,9 +236,9 @@ public final class StaticHostProvider implements HostProvider {
         // and newServers that were not in the previous list
         for (InetSocketAddress address : shuffledList) {
             if (this.serverAddresses.contains(address)) {
-                oldServers.add(address);
+                oldServers.add(address); // M
             } else {
-                newServers.add(address);
+                newServers.add(address);// N
             }
         }
 
@@ -238,8 +246,9 @@ public final class StaticHostProvider implements HostProvider {
         int numNew = newServers.size();
 
         // number of servers increased
-        if (numOld + numNew > this.serverAddresses.size()) {
-            if (myServerInNewConfig) {
+        // 在M中，有1 - s/s'的概率迁移到N，在O中，一定迁移到N
+        if (numOld + numNew > this.serverAddresses.size()) { // numOld + numNew --> s' | this.serverAddresses.size() --> s
+            if (myServerInNewConfig) { // M中
                 // my server is in new config, but load should be decreased.
                 // Need to decide if this client
                 // is moving to one of the new servers
@@ -250,19 +259,19 @@ public final class StaticHostProvider implements HostProvider {
                     // do nothing special - stay with the current server
                     reconfigMode = false;
                 }
-            } else {
+            } else { // O中
                 // my server is not in new config, and load on old servers must
                 // be decreased, so connect to
                 // one of the new servers
                 pNew = 1;
                 pOld = 0;
             }
-        } else { // number of servers stayed the same or decreased
-            if (myServerInNewConfig) {
+        } else { // number of servers stayed the same or decreased server减少
+            if (myServerInNewConfig) {// M中，保持连接
                 // my server is in new config, and load should be increased, so
                 // stay with this server and do nothing special
                 reconfigMode = false;
-            } else {
+            } else { // O中，偏向于移动到N中
                 pOld = ((float) (numOld * (this.serverAddresses.size() - (numOld + numNew))))
                        / ((numOld + numNew) * (this.serverAddresses.size() - numOld));
                 pNew = 1 - pOld;
@@ -299,14 +308,20 @@ public final class StaticHostProvider implements HostProvider {
     /**
      * Get the next server to connect to, when in "reconfigMode", which means that
      * you've just updated the server list, and now trying to find some server to connect to.
-     * Once onConnected() is called, reconfigMode is set to false. Similarly, if we tried to connect
-     * to all servers in new config and failed, reconfigMode is set to false.
+     * 在 reconfigMode 模式获取下一个要连接的server，这意味着刚刚更新server list，现在试图连接server
+     *
+     * Once onConnected() is called, reconfigMode is set to false.
+     * 只要onConnected()方法被调用，就关闭reconfigMode模式
+     *
+     * Similarly, if we tried to connect to all servers in new config and failed, reconfigMode is set to false.
+     * 简单说，如果试图连接所有newConfig的server并且都失败了，就关闭reconfigMode模式
      *
      * While in reconfigMode, we should connect to a server in newServers with probability pNew and to servers in
      * oldServers with probability pOld (which is just 1-pNew). If we tried out all servers in either oldServers
      * or newServers we continue to try servers from the other set, regardless of pNew or pOld. If we tried all servers
      * we give up and go back to the normal round robin mode
-     *
+     * 在reconfigMode模式中，以pNew概率连接newServers中的服务器，以pOld概率(1-pNew)连接到oldServers中的服务器。
+     * 如果尝试所有的新或旧任一的所有服务器，就继续尝试另一个list的服务器，不论pNew或pOld。如果尝试了所有的服务器，则放弃并回到正常的轮询模式
      * When called, this should be protected by synchronized(this)
      */
     private InetSocketAddress nextHostInReconfigMode() {

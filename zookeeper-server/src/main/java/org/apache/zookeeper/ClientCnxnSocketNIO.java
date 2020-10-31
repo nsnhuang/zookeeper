@@ -71,6 +71,7 @@ public class ClientCnxnSocketNIO extends ClientCnxnSocket {
             throw new IOException("Socket is null!");
         }
         if (sockKey.isReadable()) {
+            // 先读取长度
             int rc = sock.read(incomingBuffer);
             if (rc < 0) {
                 throw new EndOfStreamException("Unable to read additional data from server sessionid 0x"
@@ -81,6 +82,7 @@ public class ClientCnxnSocketNIO extends ClientCnxnSocket {
                 incomingBuffer.flip();
                 if (incomingBuffer == lenBuffer) {
                     recvCount.getAndIncrement();
+                    // 分配len长度给incomingBuffer
                     readLength();
                 } else if (!initialized) {
                     readConnectResult();
@@ -329,6 +331,8 @@ public class ClientCnxnSocketNIO extends ClientCnxnSocket {
         int waitTimeOut,
         Queue<Packet> pendingQueue,
         ClientCnxn cnxn) throws IOException, InterruptedException {
+        // 1. 阻塞 -》 cpu打满
+        // 2.
         selector.select(waitTimeOut);
         Set<SelectionKey> selected;
         synchronized (this) {

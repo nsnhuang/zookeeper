@@ -177,7 +177,7 @@ public class ZooKeeper implements AutoCloseable {
      * ZooKeeper server.
      * <p>
      * The function invokes a <a href="https://issues.apache.org/jira/browse/ZOOKEEPER-1355">
-     * probabilistic load-balancing algorithm</a> which may cause the client to disconnect from
+     * probabilistic load-balancing algorithm（概率性的负载均衡算法）</a> which may cause the client to disconnect from
      * its current host with the goal to achieve expected uniform number of connections per server
      * in the new list. In case the current host to which the client is connected is not in the new
      * list this call will always cause the connection to be dropped. Otherwise, the decision
@@ -187,10 +187,15 @@ public class ZooKeeper implements AutoCloseable {
      * move to one of the new hosts in order to balance the load. The algorithm will disconnect
      * from the current host with probability 0.4 and in this case cause the client to connect
      * to one of the 2 new hosts, chosen at random.
+     * 增加新connectString，调整对应比例的client连接
+     *
      * <p>
      * If the connection is dropped, the client moves to a special mode "reconfigMode" where he chooses
-     * a new server to connect to using the probabilistic algorithm. After finding a server,
+     * a new server to connect to using the probabilistic algorithm.
+     * （如果连接drop了，进入reconfigMode模式：client使用概率算法选择一个新的server）After finding a server,
      * or exhausting all servers in the new list after trying all of them and failing to connect,
+     * （找到一个server或者尝试所有的server之后，client回到普通模式：选一个任意server，
+     *  如果失败，尝试下一个（随机的，洗牌list），直到连接建立。client会继续尝试直到session被显式关闭或者被server设置过期）
      * the client moves back to the normal mode of operation where it will pick an arbitrary server
      * from the connectString and attempt to connect to it. If establishment of
      * the connection fails, another server in the connect string will be tried
@@ -210,6 +215,7 @@ public class ZooKeeper implements AutoCloseable {
      * @throws IOException in cases of network failure
      */
     public void updateServerList(String connectString) throws IOException {
+        // 解析成 InetSocketAddress List
         ConnectStringParser connectStringParser = new ConnectStringParser(connectString);
         Collection<InetSocketAddress> serverAddresses = connectStringParser.getServerAddresses();
 

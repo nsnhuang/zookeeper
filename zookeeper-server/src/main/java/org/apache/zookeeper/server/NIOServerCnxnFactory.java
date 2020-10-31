@@ -262,6 +262,7 @@ public class NIOServerCnxnFactory extends ServerCnxnFactory {
                 if (limitTotalNumberOfCnxns()) {
                     throw new IOException("Too many connections max allowed is " + maxCnxns);
                 }
+                // 一个ip最多只能建立60个连接
                 InetAddress ia = sc.socket().getInetAddress();
                 int cnxncount = getClientCnxnCount(ia);
 
@@ -273,11 +274,13 @@ public class NIOServerCnxnFactory extends ServerCnxnFactory {
 
                 sc.configureBlocking(false);
 
+                // 分配一个selector线程，交给他处理
                 // Round-robin assign this connection to a selector thread
                 if (!selectorIterator.hasNext()) {
                     selectorIterator = selectorThreads.iterator();
                 }
                 SelectorThread selectorThread = selectorIterator.next();
+                // 入队 acceptedQueue
                 if (!selectorThread.addAcceptedConnection(sc)) {
                     throw new IOException("Unable to add connection to selector queue"
                                           + (stopped ? " (shutdown in progress)" : ""));
@@ -365,6 +368,7 @@ public class NIOServerCnxnFactory extends ServerCnxnFactory {
             try {
                 while (!stopped) {
                     try {
+                        // select
                         select();
                         processAcceptedConnections();
                         processInterestOpsUpdateRequests();
@@ -404,6 +408,7 @@ public class NIOServerCnxnFactory extends ServerCnxnFactory {
 
                 Set<SelectionKey> selected = selector.selectedKeys();
                 ArrayList<SelectionKey> selectedList = new ArrayList<SelectionKey>(selected);
+                // 这里有一个shuffle的操作  ？？？
                 Collections.shuffle(selectedList);
                 Iterator<SelectionKey> selectedKeys = selectedList.iterator();
                 while (!stopped && selectedKeys.hasNext()) {
@@ -415,6 +420,7 @@ public class NIOServerCnxnFactory extends ServerCnxnFactory {
                         continue;
                     }
                     if (key.isReadable() || key.isWritable()) {
+                        // 处理IO
                         handleIO(key);
                     } else {
                         LOG.warn("Unexpected ops in select {}", key.readyOps());
@@ -439,6 +445,7 @@ public class NIOServerCnxnFactory extends ServerCnxnFactory {
             cnxn.disableSelectable();
             key.interestOps(0);
             touchCnxn(cnxn);
+            // 提交给workerPool处理
             workerPool.schedule(workRequest);
         }
 

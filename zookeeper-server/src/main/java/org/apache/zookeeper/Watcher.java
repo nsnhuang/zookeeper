@@ -138,10 +138,14 @@ public interface Watcher {
         @InterfaceAudience.Public
         enum EventType {
             None(-1),
+
             NodeCreated(1),
+
             NodeDeleted(2),
+
             NodeDataChanged(3),
             NodeChildrenChanged(4),
+
             DataWatchRemoved(5),
             ChildWatchRemoved(6),
             PersistentWatchRemoved (7);

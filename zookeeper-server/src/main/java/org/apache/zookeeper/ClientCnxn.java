@@ -1001,6 +1001,7 @@ public class ClientCnxn {
 
         /**
          * Setup session, previous watches, authentication.
+         * 向server发送一个！！！ConnectRequest！！！来建立session连接
          */
         void primeConnection() throws IOException {
             LOG.info(
@@ -1277,7 +1278,7 @@ public class ClientCnxn {
                         }
                         to = Math.min(to, pingRwTimeout - idlePingRwServer);
                     }
-
+                    // to 不是常量，发ping或请求 什么时候被唤醒
                     clientCnxnSocket.doTransport(to, pendingQueue, ClientCnxn.this);
                 } catch (Throwable e) {
                     if (closing) {

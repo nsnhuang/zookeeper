@@ -1117,6 +1117,7 @@ public class ZooKeeperServer implements SessionExpirer, ServerStats.Provider {
             boolean validpacket = Request.isValid(si.type);
             if (validpacket) {
                 setLocalSessionFlag(si);
+                // 这里是个责任链
                 firstProcessor.processRequest(si);
                 if (si.cnxn != null) {
                     incInProcess();
@@ -1336,6 +1337,7 @@ public class ZooKeeperServer implements SessionExpirer, ServerStats.Provider {
 
         BinaryInputArchive bia = BinaryInputArchive.getArchive(new ByteBufferInputStream(incomingBuffer));
         ConnectRequest connReq = new ConnectRequest();
+        // 反序列化 构造ConnectRequest对象
         connReq.deserialize(bia, "connect");
         LOG.debug(
             "Session establishment request from client {} client's lastZxid is 0x{}",
@@ -1377,8 +1379,9 @@ public class ZooKeeperServer implements SessionExpirer, ServerStats.Provider {
         if (!readOnly && this instanceof ReadOnlyZooKeeperServer) {
             String msg = "Refusing session request for not-read-only client " + cnxn.getRemoteSocketAddress();
             LOG.info(msg);
-            throw new CloseRequestException(msg, ServerCnxn.DisconnectReason.CLIENT_ZXID_AHEAD);
+            throw new CloseRequestException(msg, ServerCnxn.DisconnectReason.NOT_READ_ONLY_CLIENT);
         }
+        // 如果客户端的zxid > server端的，说明client比server快，连接失败
         if (connReq.getLastZxidSeen() > zkDb.dataTree.lastProcessedZxid) {
             String msg = "Refusing session request for client "
                          + cnxn.getRemoteSocketAddress()
@@ -1389,7 +1392,8 @@ public class ZooKeeperServer implements SessionExpirer, ServerStats.Provider {
                          + " client must try another server";
 
             LOG.info(msg);
-            throw new CloseRequestException(msg, ServerCnxn.DisconnectReason.NOT_READ_ONLY_CLIENT);
+            // ？？？bug
+            throw new CloseRequestException(msg, ServerCnxn.DisconnectReason.CLIENT_ZXID_AHEAD);
         }
         int sessionTimeout = connReq.getTimeOut();
         byte[] passwd = connReq.getPasswd();
@@ -1631,6 +1635,7 @@ public class ZooKeeperServer implements SessionExpirer, ServerStats.Provider {
                 // Already sent response to user about failure and closed the session, lets return
                 return;
             } else {
+                // 构建request
                 Request si = new Request(cnxn, cnxn.getSessionId(), h.getXid(), h.getType(), incomingBuffer, cnxn.getAuthInfo());
                 int length = incomingBuffer.limit();
                 if (isLargeRequest(length)) {
@@ -1639,6 +1644,7 @@ public class ZooKeeperServer implements SessionExpirer, ServerStats.Provider {
                     si.setLargeRequestSize(length);
                 }
                 si.setOwner(ServerCnxn.me);
+                // 提交request
                 submitRequest(si);
             }
         }
