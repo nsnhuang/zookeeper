@@ -159,11 +159,13 @@ public class FileTxnSnapLog {
             throw new DatadirException("Cannot write to snap directory " + this.snapDir);
         }
 
+        // 以上都是在处理文件，文件夹是否存在，是否自动创建，是否创建成功，是否可写
+
         // check content of transaction log and snapshot dirs if they are two different directories
         // See ZOOKEEPER-2967 for more details
         if (!this.dataDir.getPath().equals(this.snapDir.getPath())) {
-            checkLogDir();
-            checkSnapDir();
+            checkLogDir(); // 检查log文件夹下是否有snapshot文件（snapshot.开头）
+            checkSnapDir(); // 检查snap文件夹下是否有log文件（log.开头）
         }
 
         txnLog = new FileTxnLog(this.dataDir);
@@ -242,6 +244,7 @@ public class FileTxnSnapLog {
      */
     public long restore(DataTree dt, Map<Long, Integer> sessions, PlayBackListener listener) throws IOException {
         long snapLoadingStartTime = Time.currentElapsedTime();
+        // todo: (hwb) 三个事情 dt sessions lastzxid
         long deserializeResult = snapLog.deserialize(dt, sessions);
         ServerMetrics.getMetrics().STARTUP_SNAP_LOAD_TIME.add(Time.currentElapsedTime() - snapLoadingStartTime);
         FileTxnLog txnLog = new FileTxnLog(dataDir);
@@ -255,6 +258,7 @@ public class FileTxnSnapLog {
         }
 
         RestoreFinalizer finalizer = () -> {
+            // todo: (hwb) 四个事情
             long highestZxid = fastForwardFromEdits(dt, sessions, listener);
             // The snapshotZxidDigest will reset after replaying the txn of the
             // zxid in the snapshotZxidDigest, if it's not reset to null after
@@ -324,7 +328,7 @@ public class FileTxnSnapLog {
         int txnLoaded = 0;
         long startTime = Time.currentElapsedTime();
         try {
-            while (true) {
+            do {
                 // iterator points to
                 // the first valid txn when initialized
                 hdr = itr.getHeader();
@@ -349,10 +353,7 @@ public class FileTxnSnapLog {
                                           e);
                 }
                 listener.onTxnLoaded(hdr, itr.getTxn(), itr.getDigest());
-                if (!itr.next()) {
-                    break;
-                }
-            }
+            } while (itr.next());
         } finally {
             if (itr != null) {
                 itr.close();
@@ -531,6 +532,7 @@ public class FileTxnSnapLog {
      * @throws IOException
      */
     public File findMostRecentSnapshot() throws IOException {
+        // doubt 为什么不用 snapLog, 下同
         FileSnap snaplog = new FileSnap(snapDir);
         return snaplog.findMostRecentSnapshot();
     }

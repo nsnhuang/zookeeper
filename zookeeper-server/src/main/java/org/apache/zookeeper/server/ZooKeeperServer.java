@@ -1425,6 +1425,7 @@ public class ZooKeeperServer implements SessionExpirer, ServerStats.Provider {
                 Long.toHexString(connReq.getLastZxidSeen()),
                 connReq.getTimeOut(),
                 cnxn.getRemoteSocketAddress());
+            // TODO：为什么关闭
             if (serverCnxnFactory != null) {
                 serverCnxnFactory.closeSession(sessionId, ServerCnxn.DisconnectReason.CLIENT_RECONNECT);
             }

@@ -280,6 +280,8 @@ public class FileTxnLog implements TxnLog, Closeable {
         } else {
             lastZxidSeen = hdr.getZxid();
         }
+        // rollLog方法 this.logStream = null;
+        // 创建一个新日志文件
         if (logStream == null) {
             LOG.info("Creating new log file: {}", Util.makeLogName(hdr.getZxid()));
 
@@ -320,6 +322,7 @@ public class FileTxnLog implements TxnLog, Closeable {
         long logZxid = 0;
         // Find the log file that starts before or at the same time as the
         // zxid of the snapshot
+        // todo: 两个循环是否有优化空间
         for (File f : files) {
             long fzxid = Util.getZxidFromName(f.getName(), LOG_FILE_PREFIX);
             if (fzxid > snapshotZxid) {
@@ -382,6 +385,7 @@ public class FileTxnLog implements TxnLog, Closeable {
                 long startSyncNS = System.nanoTime();
 
                 FileChannel channel = log.getChannel();
+                // 强制将写入固化到磁盘
                 channel.force(false);
 
                 syncElapsedMS = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startSyncNS);
@@ -657,9 +661,9 @@ public class FileTxnLog implements TxnLog, Closeable {
                 LOG_FILE_PREFIX,
                 false);
             for (File f : files) {
-                if (Util.getZxidFromName(f.getName(), LOG_FILE_PREFIX) >= zxid) {
+                if (Util.getZxidFromName(f.getName(), LOG_FILE_PREFIX) > zxid) {
                     storedFiles.add(f);
-                } else if (Util.getZxidFromName(f.getName(), LOG_FILE_PREFIX) < zxid) {
+                } else if (Util.getZxidFromName(f.getName(), LOG_FILE_PREFIX) <= zxid) {
                     // add the last logfile that is less than the zxid
                     storedFiles.add(f);
                     break;
@@ -721,6 +725,7 @@ public class FileTxnLog implements TxnLog, Closeable {
                 inputStream = new PositionInputStream(new BufferedInputStream(new FileInputStream(logFile)));
                 LOG.debug("Created new input stream: {}", logFile);
                 ia = BinaryInputArchive.getArchive(inputStream);
+                // 验证魔数
                 inStreamCreated(ia, inputStream);
                 LOG.debug("Created new input archive: {}", logFile);
             }

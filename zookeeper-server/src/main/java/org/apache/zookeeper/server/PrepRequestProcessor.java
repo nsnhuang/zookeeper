@@ -721,6 +721,8 @@ public class PrepRequestProcessor extends ZooKeeperCriticalThread implements Req
         parentRecord.stat.setPzxid(request.getHdr().getZxid());
         parentRecord.precalculatedDigest = precalculateDigest(
                 DigestOpCode.UPDATE, parentPath, parentRecord.data, parentRecord.stat);
+        // 添加到zookeeperServer的outstandingChanges中
+        // 等待前面的事务执行结束
         addChangeRecord(parentRecord);
         ChangeRecord nodeRecord = new ChangeRecord(
                 request.getHdr().getZxid(), path, s, 0, listACL);

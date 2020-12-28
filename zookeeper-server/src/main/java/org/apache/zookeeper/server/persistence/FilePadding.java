@@ -27,7 +27,7 @@ import org.slf4j.LoggerFactory;
 public class FilePadding {
 
     private static final Logger LOG;
-    private static long preAllocSize = 65536 * 1024;
+    private static long preAllocSize = 65536 * 1024; // 64MB
     private static final ByteBuffer fill = ByteBuffer.allocateDirect(1);
 
     static {
@@ -73,6 +73,7 @@ public class FilePadding {
      * @throws IOException
      */
     long padFile(FileChannel fileChannel) throws IOException {
+        // calculateFileSizeWithPadding 计算
         long newFileSize = calculateFileSizeWithPadding(fileChannel.position(), currentSize, preAllocSize);
         if (currentSize != newFileSize) {
             fileChannel.write((ByteBuffer) fill.position(0), newFileSize - fill.remaining());

@@ -318,6 +318,7 @@ public class ZKDatabase {
     public void addCommittedProposal(Request request) {
         WriteLock wl = logLock.writeLock();
         try {
+            // todo: (hwb) 为什么加锁，哪些线程会来
             wl.lock();
             if (committedLog.size() > commitLogCount) {
                 committedLog.remove();
